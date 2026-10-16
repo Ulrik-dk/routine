@@ -1,6 +1,6 @@
 # Routine
 
-A habit board for daily routines. Tick things off through the day, and the board resets itself the next morning.
+A routine board for daily habits. Tick things off through the day, and the board resets itself the next morning.
 
 ![Routine](example.jpg)
 
