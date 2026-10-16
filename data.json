@@ -1,0 +1,69 @@
+{
+  "day": "2026-10-16",
+  "autoReset": true,
+  "editMode": false,
+  "lists": [
+    {
+      "title": "Morning",
+      "items": [
+        { "text": "Drink a glass of water" },
+        { "text": "Make the bed" },
+        {
+          "title": "Move",
+          "items": [
+            { "text": "Stretch 10 min" },
+            { "text": "20 push-ups" },
+            { "text": "Short walk around the block" }
+          ]
+        },
+        { "text": "Plan the day's top 3" }
+      ]
+    },
+    {
+      "title": "Day",
+      "items": [
+        { "text": "Deep work block before lunch" },
+        { "text": "Eat a proper lunch away from the desk" },
+        { "text": "Go outside for 15 min" },
+        {
+          "title": "Learning",
+          "items": [
+            { "text": "Read 20 pages" },
+            { "text": "Practice a language for 10 min" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Evening",
+      "items": [
+        { "text": "Tidy up for 10 min" },
+        { "text": "Prepare tomorrow's clothes and bag" },
+        {
+          "title": "Wind down",
+          "collapsed": true,
+          "items": [
+            { "text": "No screens after 22:00" },
+            { "text": "Journal three lines" },
+            { "text": "Lights out by 23:00" }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Weekly",
+      "items": [
+        { "text": "Call family" },
+        { "text": "Grocery shopping" },
+        {
+          "title": "Home",
+          "items": [
+            { "text": "Laundry" },
+            { "text": "Water the plants" },
+            { "text": "Clean the bathroom" }
+          ]
+        }
+      ]
+    }
+  ]
+}
