@@ -29,10 +29,10 @@ C = {
     "box": "#34343b", "box_hover": "#3f3f48", "sub": "#242429",
 }
 COL_W = 300
-CHECK_W = 52
-ROLL_W = 40
 INDENT = 14
 POLL_MS = 1500
+# Sliders: state key -> (label, lowest, default, highest).
+TUNING = {"padding": ("Padding", 0, 8, 20), "fontSize": ("Font size", 8, 11, 18)}
 
 
 def today():
@@ -82,6 +82,11 @@ def normalize(s):
     s.setdefault("day", today())
     s.setdefault("autoReset", True)
     s.setdefault("editMode", False)
+    for key, (_, low, default, high) in TUNING.items():
+        value = s.get(key)
+        if not isinstance(value, int):
+            value = default
+        s[key] = max(low, min(high, value))
     for lst in s["lists"]:
         normalize_entry(lst, must_be_list=True)
     return s
@@ -164,11 +169,11 @@ class FlatButton(tk.Label):
 class CheckBox(tk.Frame):
     """A square check area: grey with an empty box, or green with a tick."""
 
-    def __init__(self, parent, size, mark, font, command):
-        super().__init__(parent, width=size, height=size, cursor="hand2")
+    def __init__(self, parent, size, font, command):
+        super().__init__(parent, cursor="hand2")
         self.tick = tk.Label(self, text="✔", font=font, fg=C["bg"], cursor="hand2")
-        self.box = tk.Frame(self, width=mark, height=mark, cursor="hand2",
-                            highlightthickness=2, highlightbackground=C["border"])
+        self.box = tk.Frame(self, cursor="hand2", highlightthickness=2, highlightbackground=C["border"])
+        self.resize(size)
         self.done = False
         self.hover = False
         for w in (self, self.tick, self.box):
@@ -176,6 +181,11 @@ class CheckBox(tk.Frame):
             w.bind("<Leave>", lambda e: self.set_hover(False))
             w.bind("<Button-1>", lambda e: (command(), "break")[1])
         self.paint(False)
+
+    def resize(self, size):
+        conf(self, width=size, height=size)
+        mark = round(size * 0.46)
+        conf(self.box, width=mark, height=mark)
 
     def set_hover(self, hover):
         self.hover = hover
@@ -197,8 +207,8 @@ class CheckBox(tk.Frame):
 class RollBox(tk.Frame):
     """A square button showing ▼ (open) or ▶ (rolled up), sized like the check box."""
 
-    def __init__(self, parent, width, height, font, command):
-        super().__init__(parent, width=width, height=height, cursor="hand2")
+    def __init__(self, parent, size, font, command):
+        super().__init__(parent, width=size, height=size, cursor="hand2")
         self.glyph = tk.Label(self, font=font, fg=C["muted"], cursor="hand2")
         self.glyph.place(relx=0.5, rely=0.5, anchor="center")
         self.hover = False
@@ -207,6 +217,9 @@ class RollBox(tk.Frame):
             w.bind("<Leave>", lambda e: self.set_hover(False))
             w.bind("<Button-1>", lambda e: (command(), "break")[1])
         self.paint(False)
+
+    def resize(self, size):
+        conf(self, width=size, height=size)
 
     def set_hover(self, hover):
         self.hover = hover
@@ -252,6 +265,7 @@ class ListView:
     def update(self, lst, depth):
         self.entry, self.depth = lst, depth
         app = self.app
+        self.fit()
 
         editing = app.editing == ("list", lst["id"])
         if editing != self.title_editing:
@@ -318,9 +332,9 @@ class ColumnView(ListView):
 
         head = tk.Frame(self.frame, bg=C["column"], padx=8, pady=2, cursor="fleur")
         head.pack(fill="x")
-        self.check = CheckBox(head, 26, 12, app.f_check_small, lambda: app.toggle(self.entry))
+        self.check = CheckBox(head, app.head_box, app.f_check_small, lambda: app.toggle(self.entry))
         self.check.pack(side="left", padx=(2, 2))
-        self.arrow = RollBox(head, 26, 26, app.f_roll_small, lambda: app.toggle_collapsed(self.entry))
+        self.arrow = RollBox(head, app.head_box, app.f_roll_small, lambda: app.toggle_collapsed(self.entry))
         self.arrow.pack(side="left", padx=(2, 4))
         self.tools = tk.Frame(head, bg=C["column"])
         self.tools_pack = {}
@@ -339,8 +353,12 @@ class ColumnView(ListView):
 
         self.build_body(C["column"], footer_padx=8)
 
+    def fit(self):
+        self.check.resize(self.app.head_box)
+        self.arrow.resize(self.app.head_box)
+
     def title_wrap(self):
-        return COL_W - 170
+        return COL_W - 118 - 2 * self.app.head_box
 
     def update(self, lst, depth):
         n, done = super().update(lst, depth)
@@ -364,24 +382,33 @@ class SublistView(ListView):
         self.frame = tk.Frame(app.board, bg=C["sub"])
         head = tk.Frame(self.frame, bg=C["surface"], cursor="fleur")
         head.pack(fill="x")
-        self.check = CheckBox(head, CHECK_W, 24, app.f_check, lambda: app.toggle(self.entry))
+        self.check = CheckBox(head, app.box, app.f_check, lambda: app.toggle(self.entry))
         self.check.pack(side="left", fill="y")
-        self.arrow = RollBox(head, ROLL_W, CHECK_W, app.f_roll, lambda: app.toggle_collapsed(self.entry))
+        self.arrow = RollBox(head, app.box, app.f_roll, lambda: app.toggle_collapsed(self.entry))
         self.arrow.pack(side="left", fill="y", padx=(2, 0))
         self.tools = tk.Frame(head, bg=C["surface"])
-        self.tools_pack = {"anchor": "n", "padx": (0, 6), "pady": 10}
-        FlatButton(self.tools, "✕", self.delete, fg=C["faint"], hover_fg=C["danger"], padx=3, pady=0).pack()
+        self.tools_pack = {"anchor": "n", "padx": (0, 6)}
+        FlatButton(self.tools, "✕", self.delete, fg=C["faint"], hover_fg=C["danger"], padx=3, pady=0,
+                   font=app.f_text).pack()
         self.count = tk.Label(head, fg=C["muted"], bg=C["surface"], font=app.f_small)
-        self.count.pack(side="right", anchor="n", padx=4, pady=12)
+        self.count.pack(side="right", anchor="n", padx=4)
         self.title_slot = tk.Frame(head, bg=C["surface"])
-        self.title_slot.pack(side="left", fill="x", expand=True, padx=(10, 0), pady=12)
+        self.title_slot.pack(side="left", fill="x", expand=True, padx=(10, 0))
         app.bind_drag(head, self)
         app.bind_drag(self.title_slot, self)
 
         self.build_body(C["sub"], padx=(INDENT, 0), footer_padx=(INDENT - 8, 0))
 
+    def fit(self):
+        app = self.app
+        self.check.resize(app.box)
+        self.arrow.resize(app.box)
+        conf(self.title_slot, pady=app.pad)
+        conf(self.count, pady=app.pad)
+        conf(self.tools, pady=app.tool_pad)
+
     def title_wrap(self):
-        return COL_W - 150 - ROLL_W - (self.depth - 1) * (INDENT + 6)
+        return COL_W - 98 - 2 * self.app.box - (self.depth - 1) * (INDENT + 6)
 
 
 class CardView:
@@ -397,12 +424,13 @@ class CardView:
 
         self.frame = tk.Frame(app.board, bg=C["surface"], cursor="fleur")
         # The whole left edge of the card is the check box.
-        self.check = CheckBox(self.frame, CHECK_W, 24, app.f_check, lambda: app.toggle(self.entry))
+        self.check = CheckBox(self.frame, app.box, app.f_check, lambda: app.toggle(self.entry))
         self.check.pack(side="left", fill="y")
         self.tools = tk.Frame(self.frame, bg=C["surface"])
         FlatButton(self.tools, "✎", lambda: app.start_edit(("item", self.entry["id"])),
-                   fg=C["faint"], padx=3, pady=0).pack(side="left")
-        FlatButton(self.tools, "✕", self.delete, fg=C["faint"], hover_fg=C["danger"], padx=3, pady=0).pack(side="left")
+                   fg=C["faint"], padx=3, pady=0, font=app.f_text).pack(side="left")
+        FlatButton(self.tools, "✕", self.delete, fg=C["faint"], hover_fg=C["danger"], padx=3, pady=0,
+                   font=app.f_text).pack(side="left")
         app.bind_drag(self.frame, self)
 
     def delete(self):
@@ -419,19 +447,22 @@ class CardView:
                 w.destroy()
             if editing:
                 entry = app.inline_entry(self.frame, item["text"], lambda v: self.entry.update(text=v))
-                entry.pack(side="left", fill="x", expand=True, padx=(12, 6), pady=10)
+                entry.pack(side="left", fill="x", expand=True, padx=(12, 6), pady=app.tool_pad)
                 self.body, self.text = [entry], None
             else:
                 self.text = tk.Label(self.frame, bg=C["surface"], anchor="w", justify="left")
-                self.text.pack(side="left", fill="x", expand=True, padx=(12, 0), pady=12)
+                self.text.pack(side="left", fill="x", expand=True, padx=(12, 0))
                 self.text.bind("<Double-Button-1>", lambda e: (app.start_edit(("item", self.entry["id"])), "break")[1])
                 app.bind_drag(self.text, self)
                 self.body = [self.text]
-        show(self.tools, app.edit_mode, side="right", anchor="n", padx=(0, 6), pady=10, before=self.check)
+        conf(self.tools, pady=app.tool_pad)
+        show(self.tools, app.edit_mode, side="right", anchor="n", padx=(0, 6), before=self.check)
         done = item["done"]
         if self.text is not None:
-            conf(self.text, text=item["text"], wraplength=COL_W - 140 - (depth - 1) * (INDENT + 6),
+            conf(self.text, text=item["text"], pady=app.pad + 1,
+                 wraplength=COL_W - 88 - app.box - (depth - 1) * (INDENT + 6),
                  fg=C["muted"] if done else C["text"], font=app.f_strike if done else app.f_text)
+        self.check.resize(app.box)
         self.check.paint(done)
 
 
@@ -482,10 +513,12 @@ class App:
         self.views = {}          # entry id -> ColumnView | SublistView | CardView
         self.containers = []     # expanded lists, outermost first, for drag and drop
         self.top = []            # (list, ColumnView) in board order
+        self.metrics = None      # (padding, font size) the layout is currently sized for
+        self.pad = self.tool_pad = self.box = self.head_box = 0
 
         base = tkfont.nametofont("TkDefaultFont")
         base.configure(size=11)
-        self.f_text = base
+        self.f_text = base.copy()  # habit and list text follows the slider; the chrome stays put
         self.f_bold = base.copy()
         self.f_bold.configure(weight="bold")
         self.f_bold_strike = base.copy()
@@ -512,6 +545,7 @@ class App:
 
         self.build_chrome()
         self.load()
+        self.apply_metrics()
         self.snapshot = copy.deepcopy(self.state)  # the state as last committed
 
         root.bind_all("<Control-z>", lambda e: self.undo())
@@ -555,8 +589,8 @@ class App:
 
     def record(self, message=None):
         """Make the change since the last commit an undo step (if anything changed)."""
-        def undoable(state):  # the date and edit mode aren't part of the board
-            return {k: v for k, v in state.items() if k not in ("day", "editMode")}
+        def undoable(state):  # the date and view settings aren't part of the board
+            return {k: v for k, v in state.items() if k not in ("day", "editMode", *TUNING)}
         if undoable(self.state) != undoable(self.snapshot):
             self.undo_stack = (self.undo_stack + [(message, self.snapshot)])[-UNDO_STEPS:]
             self.redo_stack = []  # a new change makes the undone steps unreachable
@@ -638,7 +672,8 @@ class App:
         """Show a state from the undo/redo stacks, without recording it as a new step."""
         state = copy.deepcopy(state)
         state["day"] = today()
-        state["editMode"] = self.state["editMode"]
+        for key in ("editMode", *TUNING):
+            state[key] = self.state[key]
         self.state = state
         self.snapshot = copy.deepcopy(state)
         self.save()
@@ -672,7 +707,7 @@ class App:
     # ---------- chrome: header, scrollable board, toast ----------
 
     def build_chrome(self):
-        head = tk.Frame(self.root, bg=C["bg"], padx=16, pady=10)
+        head = self.head = tk.Frame(self.root, bg=C["bg"], padx=16, pady=10)
         head.pack(fill="x")
         tk.Label(head, text="Routine", font=self.f_title, fg=C["text"], bg=C["bg"]).pack(side="left")
         self.date_label = tk.Label(head, fg=C["muted"], bg=C["bg"], font=self.f_small)
@@ -687,6 +722,19 @@ class App:
         self.auto_btn.pack(side="right", padx=(0, 6))
         self.edit_btn = FlatButton(head, "", self.toggle_edit_mode)
         self.edit_btn.pack(side="right", padx=(0, 6))
+
+        self.tuning = tk.Frame(self.root, bg=C["bg"], padx=16)
+        self.scales = {}
+        for key, (label, low, _, high) in TUNING.items():
+            tk.Label(self.tuning, text=label, fg=C["muted"], bg=C["bg"], font=self.f_small).pack(side="left")
+            scale = tk.Scale(self.tuning, from_=low, to=high, orient="horizontal", length=150, width=10,
+                             sliderlength=18, showvalue=False, bg=C["muted"], troughcolor=C["surface"],
+                             activebackground=C["accent"], highlightthickness=0, bd=0, sliderrelief="flat",
+                             cursor="hand2", command=lambda v, key=key: self.tune(key, int(float(v))))
+            scale.pack(side="left", padx=(8, 6))
+            value = tk.Label(self.tuning, width=2, anchor="w", fg=C["text"], bg=C["bg"], font=self.f_small)
+            value.pack(side="left", padx=(0, 20))
+            self.scales[key] = (scale, value)
 
         wrap = tk.Frame(self.root, bg=C["bg"])
         wrap.pack(fill="both", expand=True)
@@ -738,6 +786,35 @@ class App:
         self.start_edit(("new-list",))
         self.root.update_idletasks()
         self.canvas.xview_moveto(1.0)  # the form sits after the last column
+
+    def tune(self, key, value):
+        """A slider moved. (Setting a slider also lands here, with the value it already has.)"""
+        if value != self.state[key]:
+            self.state[key] = value
+            self.commit()
+
+    def apply_metrics(self):
+        """Size the fonts and boxes for the current padding and font size. One line of
+        habit text plus its padding gives the height of a card, and so of its square box."""
+        pad, size = self.state["padding"], self.state["fontSize"]
+        if self.metrics == (pad, size):
+            return
+        self.metrics = (pad, size)
+        for f in (self.f_text, self.f_bold, self.f_bold_strike, self.f_strike):
+            f.configure(size=size)
+        line = self.f_text.metrics("linespace") + 4  # a label's own border and padding
+        self.pad = pad
+        self.tool_pad = max(0, pad - 2)
+        self.box = line + 2 * pad
+        self.head_box = line + 4
+        # Negative sizes are pixels: these glyphs follow their box.
+        self.f_check.configure(size=-round(self.box * 0.52))
+        self.f_check_small.configure(size=-round(self.head_box * 0.52))
+        self.f_roll.configure(size=-round(self.box * 0.38))
+        self.f_roll_small.configure(size=-round(self.head_box * 0.5))
+        for key, (scale, value) in self.scales.items():
+            scale.set(self.state[key])
+            value.config(text=self.state[key])
 
     def toggle_auto(self):
         self.state["autoReset"] = not self.state["autoReset"]
@@ -803,6 +880,7 @@ class App:
     def render(self):
         if self.press and self.press["active"]:
             return
+        self.apply_metrics()
         self.seen = set()
         self.containers = []
         self.top = []
@@ -820,6 +898,7 @@ class App:
         elif self.new_list.frame.winfo_manager():
             self.new_list.frame.grid_forget()
 
+        show(self.tuning, self.edit_mode, fill="x", pady=(0, 6), after=self.head)
         conf(self.auto_btn, text=("☑" if self.state["autoReset"] else "☐") + "  Auto-reset each day")
         conf(self.edit_btn, text=("☑" if self.edit_mode else "☐") + "  Edit mode (Ctrl+E)")
         conf(self.help, text="Drag to move · drop a list into another to nest it, or onto the header row to "
